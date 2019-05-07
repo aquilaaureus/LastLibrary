@@ -1,34 +1,35 @@
-#include "CGCBaseEvent.h"
+#ifndef H_EVENT_H_
+	#include "BaseEvent.h"
+#endif
 
-
-CGCBaseEvent::CGCBaseEvent( char* type )
+BaseEvent::BaseEvent( i8* type )
 {
 	m_pchzType = type;
-	//m_pvData = new std::vector<MyFieldInterface*>();
-	m_pmNames = new std::map<const char*, CMyFieldInterface*, cmp_str>();
+	//m_pvData = new std::vector<MyFieldi32erface*>();
+	m_pmNames = new std::map<const i8*, CMyFieldi32erface*, cmp_str>();
 }
 
-CGCBaseEvent::CGCBaseEvent( const char* type )
+BaseEvent::BaseEvent( const i8* type )
 {
 	m_pchzType = type;
-	//m_pvData = new std::vector<MyFieldInterface*>();
-	m_pmNames = new std::map<const char*, CMyFieldInterface*, cmp_str>();
+	//m_pvData = new std::vector<MyFieldi32erface*>();
+	m_pmNames = new std::map<const i8*, CMyFieldi32erface*, cmp_str>();
 }
 
 
-CGCBaseEvent::~CGCBaseEvent()
+BaseEvent::~BaseEvent()
 {
 	delete m_pmNames;
 	//delete m_pvData;
 }
 
-const char* CGCBaseEvent::GetEventName() const
+const i8* BaseEvent::GetEventName() const
 {
 	return m_pchzType;
 }
 
 /*
-void* CGCBaseEvent::GetDataByName( char* name )
+void* CGCBaseEvent::GetDataByName( i8* name )
 {
 	if (m_pmdatafields)
 	{
@@ -41,9 +42,9 @@ void* CGCBaseEvent::GetDataByName( char* name )
 	return nullptr;
 }
 
-void CGCBaseEvent::AddData( char* name, void* item )
+void CGCBaseEvent::AddData( i8* name, void* item )
 {
-	m_pmdatafields->insert( std::pair<char*, void*>( name, item ) );
+	m_pmdatafields->insert( std::pair<i8*, void*>( name, item ) );
 }
 */
 

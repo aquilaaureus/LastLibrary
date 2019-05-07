@@ -1,10 +1,13 @@
-#ifndef _BASEEVENTMANAGER_H_
-#define _BASEEVENTMANAGER_H_
+#ifndef H_EVENTMANAGER_H_
+#define H_EVENTMANAGER_H_
 
-#include "CGCBaseEvent.h"
-#include "CIGCEventBaseListener.h"
+#ifndef H_STDA_H_
+	#include "../stdafx.h"
+#endif // !H_STDA_H_
 
-#include <list>
+class BaseEvent;
+class BaseDelayedEvent;
+class EventBaseListener;
 
 ///////////////////////////////////////////////////
 // THIS IS THE CENTRAL CLASS OF THE EVENT SYSTEM.
@@ -14,18 +17,21 @@
 //
 // YOU CAN CREATE EVENTS ON YOUR OWN, WITHOUT THE MANAGER, BUT
 // IF YOU DO, YOU ARE RESPONSIBLE FOR REGISTERING THEM WITH THE MANAGER
+// AS WELL AS FOR DELETING THEM AFTER YOU ARE DONE WITH THEM (THEY ARE SENT).
 //
-// IF YOU ARE IMPLEMENTING THIS SYSTEM, YOU MUST CALL ProcessAllEvents()
-// IN EVERY UPDATE.
+// IF YOU ARE IMPLEMENTING THIS SYSTEM, YOU MUST CALL
+// EITHER VOnUpdate() OR ProcessAllEvents() IN EVERY UPDATE.
+//
+// !!!!!!!!!!! NEVER CALL BOTH FUNCTIONS!!!!!!!!!!!!!!!!!
+//
 ///////////////////////////////////////////////////
 
-class CGCEventBaseManager
-{
-private:
-	std::list<const char*> * m_pcAllEventTypes;										//List of Registered Event Types (names)
-	std::map<const char*, std::list<CIGCEventBaseListener*> * > * m_pmAllListeners;	//List of Registered Listeners, for each event type.
+class ScenarioManager;
 
-	bool IsEventRegistered( const char* pstrEventName );			//Internal function to check if an event type is already registered
+class EventBaseManager
+	: FrameworkSubsystem
+{
+	friend ScenarioManager;
 public:
 	// it is good practice to detect and report errors, this allows client code to do the 
 	// tedious (and application specific) error handling.
@@ -36,26 +42,85 @@ public:
 		EEventError_NoListeners		//No listeners have been registered for this event type
 	};
 
-	CGCEventBaseManager();
-	~CGCEventBaseManager();
+private:
+
+	class EventSender
+	{
+	private:
+		ChainList<EventBaseListener>* pc_ListenersList;
+
+	public:
+		EventSender() {
+			pc_ListenersList = new ChainList<EventBaseListener>();
+		}
+
+		~EventSender() {
+			delete pc_ListenersList;
+		};
+
+		void RegisterListener( EventBaseListener* list ){
+			pc_ListenersList->AddLast(list);
+		};
+
+		EventBaseManager::EEventError Send( BaseEvent* ev ) {
+			if (!pc_ListenersList->GetCount()) {
+				return EEventError_NoListeners;
+			}
+
+			EventBaseListener* curr = pc_ListenersList->GetFirst();
+
+			while (curr)
+			{
+				curr->OnEvent(ev);
+				curr = pc_ListenersList->GetNextFrom(curr);
+			}
+
+			return EEventError_Ok;
+		};
+	};
+
+	i32 numOfRegistations;
+	(const i8*)* RegisteredEventTypes;
+	ChainList<EventSender>* ListOfHandlers;
+
+	ChainList<BaseDelayedEvent>* listOfDelayedEvents;
+	
+	bool EventBaseManager::IsEventRegistered( const i8* pstrEventName );			//internal function to check if an event type is already registered
+	i32 FindRegisteredEventIndex( const i8* pstrEventName ); //Used  to retrieve the internal index for the Array of Handlers
+
+public:
+	EventBaseManager();
+	~EventBaseManager();
 
 
 	// registers an event type
 	// this is necessary so that events of this type can be processed
-	void RegisterEventType(const char* pstrName );
+	void EventBaseManager::RegisterEventType(const i8* pstrName );
+
+	//Send Delayed Event
+	bool EventBaseManager::SendDelayedEvent( BaseDelayedEvent* pcEvent);
 
 	// use this function to create and event, automatically register it, and get a pointer to it back.
-	CGCBaseEvent* CreateNewEvent( const char* pstrName );
+	BaseEvent* EventBaseManager::CreateNewEvent( const i8* pstrName );
 
 	// Registers a listener for an event.
 	// This returns appropriate error codes if the event isn't registered
-	EEventError RegisterAsListener( CIGCEventBaseListener* calling_this, const char* pstrEventName );
+	EventBaseManager::EEventError EventBaseManager::RegisterAsListener( EventBaseListener* calling_this, const i8* pstrEventName );
 	
 	//Use this to send an event, by passing the pointer from the event creation.
-	//Returns true if sucesssul, false otherwise. 
+	//Returns true if successful, false otherwise. 
 	//Failure is most likely because the event has not been properly registered.
 	//Remember that registration is case sensitive.
-	EEventError SendEvent( CGCBaseEvent* pcEvent );
+	EventBaseManager::EEventError EventBaseManager::SendEvent( BaseEvent* pcEvent );
+	
+	virtual void VOnUpdate( f32 deltatime ) override;
+
+	virtual void VInitialize() override;
+
+	virtual void VLoad(const i8* n) override
+	{};
 
 };
-#endif
+
+#endif // !H_EVENTMANAGER_H_
+

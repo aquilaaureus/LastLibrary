@@ -1,57 +1,112 @@
-#include "CGCEventBaseManager.h"
-#include "cocos2d.h"
+#ifndef H_STDA_H_
+	#include "../stdafx.h"
+#endif
 
-CGCEventBaseManager::CGCEventBaseManager()
+#ifndef H_EVENT_H_
+	#include "BaseEvent.h"
+#endif
+
+#ifndef H_EVENTLISTENER_H_
+	#include "EventBaseListener.h"
+#endif
+
+#ifndef H_EVENTMANAGER_H_
+	#include "EventBaseManager.h"
+#endif
+
+#ifndef H_DELAYEDEVENT_H_
+	#include "BaseDelayedEvent.h"
+#endif
+
+EventBaseManager::EventBaseManager()
 {
-	m_pcAllEventTypes = new std::list<const char*>();
-	m_pmAllListeners = new std::map<const char*, std::list<CIGCEventBaseListener*>* >();
+	numOfRegistations = 0;
+
+	//ON DEBUG: Check to see exactly what data this holds after registering a few events, we want each element to be a (const) i8* .
+	RegisteredEventTypes = new const i8* [MAX_EVENT_TYPES];
+
+	ArrayOfHandlers = new EventSender* [MAX_EVENT_TYPES];
+
+	listOfDelayedEvents = new ChainList<BaseDelayedEvent>();
+
+	/*m_pcAllEventTypes = new std::vector<const i8*>();
+	m_pmAllListeners = new std::map<const i8*, std::vector<EventBaseListener*>* >();
+	m_pcAllDelayedEvents = new std::vector<BaseDelayedEvent*>();*/
 }
 
-
-CGCEventBaseManager::~CGCEventBaseManager()
+EventBaseManager::~EventBaseManager()
 {
-	delete m_pcAllEventTypes;
-	delete m_pmAllListeners;
+	delete[] RegisteredEventTypes;
+	delete[] ArrayOfHandlers;
 
-	//No need to set them to null pointer here, since they will be removed as the object gets destroyed
+	listOfDelayedEvents->ClearList();
+	delete listOfDelayedEvents;
 }
 
-
-bool CGCEventBaseManager::IsEventRegistered( const char * pstrEventName )
+bool EventBaseManager::IsEventRegistered( const i8 * pstrEventName )
 {
-	if (m_pcAllEventTypes->empty())
+	return -1 != FindRegisteredEventIndex( pstrEventName );
+}
+
+i32 EventBaseManager::FindRegisteredEventIndex( const i8 * pstrEventName )
+{
+	if (numOfRegistations)
 	{
-		return false;
-	}
-	for (std::list<const char*>::iterator it = m_pcAllEventTypes->begin(); it != m_pcAllEventTypes->end(); ++it)
-	{
-		if(pstrEventName == *it)
+		for (i32 i = 0; i < numOfRegistations; ++i)
 		{
-			return true;
+			if (pstrEventName == RegisteredEventTypes[i])
+			{
+				return i;
+			}
 		}
 	}
-	return false;
+	return -1; //Not found
 }
 
 //Use this to register a new event you "new"ed yourself with the manager.
-//Do not use for events created with CreateNewEvent(char* Name).
-//Returns true if sucesssul, false otherwise. 
-//Failure is most likely because the event has not been properly registered.
+//Do not use for events created with CreateNewEvent(i8* Name).
 //Remember that registration is case sensitive.
-void CGCEventBaseManager::RegisterEventType( const char * pstrName )
+void EventBaseManager::RegisterEventType( const i8 * pstrName )
 {
 	if (!IsEventRegistered( pstrName ))
 	{
-		m_pmAllListeners->insert( std::make_pair( pstrName, new std::list<CIGCEventBaseListener*>() ) );
-		m_pcAllEventTypes->push_back( pstrName );
+		RegisteredEventTypes[numOfRegistations++] = pstrName;
+		ArrayOfHandlers[numOfRegistations] = new EventSender();
+		//m_pmAllListeners->insert( std::make_pair( pstrName, new std::vector<EventBaseListener*>() ) );
+		//m_pcAllEventTypes->push_back( pstrName );
+	}
+}
+
+void EventBaseManager::RegisterEventType( const i8 * pstrName, i32 NumOfListeners )
+{
+	if (!IsEventRegistered( pstrName ))
+	{
+		RegisteredEventTypes[numOfRegistations++] = pstrName;
+		ArrayOfHandlers[numOfRegistations] = new EventSender( NumOfListeners );
+		//m_pmAllListeners->insert( std::make_pair( pstrName, new std::vector<EventBaseListener*>() ) );
+		//m_pcAllEventTypes->push_back( pstrName );
+	}
+}
+
+bool EventBaseManager::SendDelayedEvent( BaseDelayedEvent * pcEvent )
+{
+	if (IsEventRegistered( pcEvent->GetEventName() ))
+	{
+		//Add to delayed list
+		listOfDelayedEvents->AddLast( pcEvent );
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 
 //It is recomended to use this class to generate new events.
 //If you don't, registering them and deleting them is your responsibility
-CGCBaseEvent * CGCEventBaseManager::CreateNewEvent( const char * pstrName )
+BaseEvent * EventBaseManager::CreateNewEvent( const i8 * pstrName )
 {
-	CGCBaseEvent* newEvent = new CGCBaseEvent( pstrName );
+	BaseEvent* newEvent = new BaseEvent( pstrName );
 
 	if (!IsEventRegistered( newEvent->GetEventName() ))
 	{
@@ -65,47 +120,84 @@ CGCBaseEvent * CGCEventBaseManager::CreateNewEvent( const char * pstrName )
 //Returns true if sucesssul, false otherwise. 
 //Failure is most likely because the event has not been properly registered.
 //Remember that registration is case sensitive.
-CGCEventBaseManager::EEventError CGCEventBaseManager::RegisterAsListener( CIGCEventBaseListener* calling_this, const char* pstrEventName )
+EventBaseManager::EEventError EventBaseManager::RegisterAsListener( EventBaseListener* calling_this, const i8* pstrEventName )
 {
-	if (IsEventRegistered( pstrEventName )) //check that the event is registered.
+	i32 index = FindRegisteredEventIndex( pstrEventName );
+	if (-1 != index) //check that the event is registered.
 	{
-        //m_pmAllListeners->at( pstrEventName )->push_back( calling_this );
-        auto Cit = m_pmAllListeners->find( pstrEventName );
-        if(Cit != m_pmAllListeners->end())
-        {
-            std::list<CIGCEventBaseListener*> * myvector = Cit->second;
-            myvector->push_back(calling_this);
-            CCLOG("OnEventListen");
-        }
-		return CGCEventBaseManager::EEventError::EEventError_Ok;
+		//m_pmAllListeners->at( pstrEventName )->push_back( calling_this );
+		ArrayOfHandlers[index]->RegisterListener( calling_this );
+		return EventBaseManager::EEventError::EEventError_Ok;
 	}
-    CCLOG("OnEvent404");
-	return CGCEventBaseManager::EEventError::EEventError_EventNotFound;
+
+	return EventBaseManager::EEventError::EEventError_EventNotFound;
 }
 
-CGCEventBaseManager::EEventError CGCEventBaseManager::SendEvent( CGCBaseEvent* ev )
+EventBaseManager::EEventError EventBaseManager::SendEvent( BaseEvent* ev )
 {
-	if (IsEventRegistered( ev->GetEventName() )) //verify that the event is registered
+	i32 index = FindRegisteredEventIndex( ev->GetEventName() );
+	if ( -1!= index ) //verify that the event is registered
 	{
-		auto Cit = m_pmAllListeners->find( ev->GetEventName() ); //Verify that the event has listeners
-
-		if (Cit != m_pmAllListeners->end()) 
-		{
-			std::list<CIGCEventBaseListener*> * myvector = Cit->second; //get the vector of listeners for this event type
-			for (std::list<CIGCEventBaseListener*>::iterator it = myvector->begin(); it != myvector->end(); ++it) //for each listener in the vector...
-			{
-				CCLOG("OnEventSendToL");
-				(*it)->OnEvent( ev ); //...Call OnEvent
-			}
-            CCLOG("OnEventSend");
-            return CGCEventBaseManager::EEventError::EEventError_Ok;
+		if (ArrayOfHandlers[index]->NumOfRegisteredListeners()) {
+			ArrayOfHandlers[index]->Send( ev );
+			return EventBaseManager::EEventError::EEventError_Ok;
 		}
+		//if (it != m_pmAllListeners->end()) 
+		//{
+		//	std::vector<EventBaseListener*> * myvector = it->second; //get the vector of listeners for this event type
+		//	for (std::vector<EventBaseListener*>::iterator it = myvector->begin(); it != myvector->end(); ++it) //for each listener in the vector...
+		//	{
+		//		(*it)->OnEvent( ev ); //...Call OnEvent
+		//	}
+		//	//m_pvcAllEventsList->push_back( ev ); //add event to the stack (send) in order to be processed
+		//	return EventBaseManager::EEventError::EEventError_Ok;
+		//}
 		else
 		{
-            CCLOG("OnEventSendNoL");
-            return CGCEventBaseManager::EEventError::EEventError_NoListeners; //no listeners
+			return EventBaseManager::EEventError::EEventError_NoListeners; //no listeners
 		}
 	}
-    CCLOG("OnEvent404");
-    return CGCEventBaseManager::EEventError::EEventError_EventNotFound; //event not registered
+	return EventBaseManager::EEventError::EEventError_EventNotFound; //event not registered
 }
+
+void EventBaseManager::VInitialize()
+{
+	if (!numOfRegistations) {
+		pri32f("WARN \tEVENT MANAGER: NO EVENTS REGISTERED");
+	}
+}
+
+void EventBaseManager::VOnUpdate( f32 deltatime )
+{
+	if (listOfDelayedEvents->IsEmpty())
+	{
+		return;
+	}
+	
+	BaseDelayedEvent* curr = listOfDelayedEvents->GetFirst();
+	do 
+	{
+		curr->VOnUpdate( deltatime );
+
+		if (curr->IsDelayOver()) {
+			SendEvent( curr );
+			curr = listOfDelayedEvents->GetNextFrom( curr );
+			listOfDelayedEvents->Remove( listOfDelayedEvents->GetPreviousOf( curr ) );
+		} else {
+			curr = listOfDelayedEvents->GetNextFrom( curr );
+		}
+	} while (curr != listOfDelayedEvents->GetLast());
+
+	//for (std::vector<BaseDelayedEvent*>::iterator it = m_pcAllDelayedEvents->begin(); it != m_pcAllDelayedEvents->end(); ++it) //for each listener in the vector...
+	//{
+	//	(*it)->VOnUpdate( deltatime );
+	//	if ((*it)->IsDelayOver())
+	//	{
+	//		SendEvent( (*it) );
+
+	//	}
+	//}
+
+}
+
+
