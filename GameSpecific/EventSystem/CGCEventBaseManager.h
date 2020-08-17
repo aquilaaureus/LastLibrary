@@ -31,7 +31,6 @@ class ScenarioManager;
 class EventBaseManager
 	: FrameworkSubsystem
 {
-	friend ScenarioManager;
 public:
 	// it is good practice to detect and report errors, this allows client code to do the 
 	// tedious (and application specific) error handling.
@@ -79,14 +78,14 @@ private:
 		};
 	};
 
-	i32 numOfRegistations;
-	(const i8*)* RegisteredEventTypes;
-	ChainList<EventSender>* ListOfHandlers;
+	i32 m_inumOfRegistations;
+	(const i8*)* pc_RegisteredEventTypes;
+	ChainList<EventSender>* pc_ListOfHandlers;
 
-	ChainList<BaseDelayedEvent>* listOfDelayedEvents;
+	ChainList<BaseDelayedEvent>* pch_listOfDelayedEvents;
 	
-	bool EventBaseManager::IsEventRegistered( const i8* pstrEventName );			//internal function to check if an event type is already registered
-	i32 FindRegisteredEventIndex( const i8* pstrEventName ); //Used  to retrieve the internal index for the Array of Handlers
+	bool EventBaseManager::IsEventRegistered( const i8* i8_pstrEventName );			//internal function to check if an event type is already registered
+	i32 FindRegisteredEventIndex( const i8* i8_pstrEventName ); //Used  to retrieve the internal index for the Array of Handlers
 
 public:
 	EventBaseManager();
@@ -113,11 +112,11 @@ public:
 	//Remember that registration is case sensitive.
 	EventBaseManager::EEventError EventBaseManager::SendEvent( BaseEvent* pcEvent );
 	
-	virtual void VOnUpdate( f32 deltatime ) override;
+	virtual void VOnUpdate( f32 fdeltatime ) override;
 
 	virtual void VInitialize() override;
 
-	virtual void VLoad(const i8* n) override
+	virtual void VLoad(const i8* name) override
 	{};
 
 };
