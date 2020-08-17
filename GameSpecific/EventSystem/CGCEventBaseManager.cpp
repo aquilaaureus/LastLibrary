@@ -20,12 +20,12 @@
 
 EventBaseManager::EventBaseManager()
 {
-	numOfRegistations = 0;
+	m_inumOfRegistations = 0;
 
 	//ON DEBUG: Check to see exactly what data this holds after registering a few events, we want each element to be a (const) i8* .
 	RegisteredEventTypes = new const i8* [MAX_EVENT_TYPES];
 
-	ArrayOfHandlers = new EventSender* [MAX_EVENT_TYPES];
+	p_ArrayOfHandlers = new EventSender* [MAX_EVENT_TYPES];
 
 	listOfDelayedEvents = new ChainList<BaseDelayedEvent>();
 
@@ -36,11 +36,11 @@ EventBaseManager::EventBaseManager()
 
 EventBaseManager::~EventBaseManager()
 {
-	delete[] RegisteredEventTypes;
-	delete[] ArrayOfHandlers;
+	delete[] pc_RegisteredEventTypes;
+	delete[] p_ArrayOfHandlers;
 
-	listOfDelayedEvents->ClearList();
-	delete listOfDelayedEvents;
+	pch_listOfDelayedEvents->ClearList();
+	delete pch_listOfDelayedEvents;
 }
 
 bool EventBaseManager::IsEventRegistered( const i8 * pstrEventName )
@@ -50,11 +50,11 @@ bool EventBaseManager::IsEventRegistered( const i8 * pstrEventName )
 
 i32 EventBaseManager::FindRegisteredEventIndex( const i8 * pstrEventName )
 {
-	if (numOfRegistations)
+	if (m_inumOfRegistations)
 	{
-		for (i32 i = 0; i < numOfRegistations; ++i)
+		for (i32 i = 0; i < m_inumOfRegistations; ++i)
 		{
-			if (pstrEventName == RegisteredEventTypes[i])
+			if (pstrEventName == pc_RegisteredEventTypes[i])
 			{
 				return i;
 			}
@@ -70,8 +70,8 @@ void EventBaseManager::RegisterEventType( const i8 * pstrName )
 {
 	if (!IsEventRegistered( pstrName ))
 	{
-		RegisteredEventTypes[numOfRegistations++] = pstrName;
-		ArrayOfHandlers[numOfRegistations] = new EventSender();
+		pc_RegisteredEventTypes[numOfRegistations++] = pstrName;
+		p_ArrayOfHandlers[numOfRegistations] = new EventSender();
 		//m_pmAllListeners->insert( std::make_pair( pstrName, new std::vector<EventBaseListener*>() ) );
 		//m_pcAllEventTypes->push_back( pstrName );
 	}
@@ -81,8 +81,8 @@ void EventBaseManager::RegisterEventType( const i8 * pstrName, i32 NumOfListener
 {
 	if (!IsEventRegistered( pstrName ))
 	{
-		RegisteredEventTypes[numOfRegistations++] = pstrName;
-		ArrayOfHandlers[numOfRegistations] = new EventSender( NumOfListeners );
+		pc_RegisteredEventTypes[m_inumOfRegistations++] = pstrName;
+		p_ArrayOfHandlers[m_inumOfRegistations] = new EventSender( NumOfListeners );
 		//m_pmAllListeners->insert( std::make_pair( pstrName, new std::vector<EventBaseListener*>() ) );
 		//m_pcAllEventTypes->push_back( pstrName );
 	}
@@ -93,7 +93,7 @@ bool EventBaseManager::SendDelayedEvent( BaseDelayedEvent * pcEvent )
 	if (IsEventRegistered( pcEvent->GetEventName() ))
 	{
 		//Add to delayed list
-		listOfDelayedEvents->AddLast( pcEvent );
+		pch_listOfDelayedEvents->AddLast( pcEvent );
 		return true;
 	}
 	else
@@ -126,7 +126,7 @@ EventBaseManager::EEventError EventBaseManager::RegisterAsListener( EventBaseLis
 	if (-1 != index) //check that the event is registered.
 	{
 		//m_pmAllListeners->at( pstrEventName )->push_back( calling_this );
-		ArrayOfHandlers[index]->RegisterListener( calling_this );
+		p_ArrayOfHandlers[index]->RegisterListener( calling_this );
 		return EventBaseManager::EEventError::EEventError_Ok;
 	}
 
@@ -138,20 +138,10 @@ EventBaseManager::EEventError EventBaseManager::SendEvent( BaseEvent* ev )
 	i32 index = FindRegisteredEventIndex( ev->GetEventName() );
 	if ( -1!= index ) //verify that the event is registered
 	{
-		if (ArrayOfHandlers[index]->NumOfRegisteredListeners()) {
-			ArrayOfHandlers[index]->Send( ev );
+		if (p_ArrayOfHandlers[index]->NumOfRegisteredListeners()) {
+			p_ArrayOfHandlers[index]->Send( ev );
 			return EventBaseManager::EEventError::EEventError_Ok;
 		}
-		//if (it != m_pmAllListeners->end()) 
-		//{
-		//	std::vector<EventBaseListener*> * myvector = it->second; //get the vector of listeners for this event type
-		//	for (std::vector<EventBaseListener*>::iterator it = myvector->begin(); it != myvector->end(); ++it) //for each listener in the vector...
-		//	{
-		//		(*it)->OnEvent( ev ); //...Call OnEvent
-		//	}
-		//	//m_pvcAllEventsList->push_back( ev ); //add event to the stack (send) in order to be processed
-		//	return EventBaseManager::EEventError::EEventError_Ok;
-		//}
 		else
 		{
 			return EventBaseManager::EEventError::EEventError_NoListeners; //no listeners
@@ -162,41 +152,31 @@ EventBaseManager::EEventError EventBaseManager::SendEvent( BaseEvent* ev )
 
 void EventBaseManager::VInitialize()
 {
-	if (!numOfRegistations) {
+	if (!m_inumOfRegistations) {
 		pri32f("WARN \tEVENT MANAGER: NO EVENTS REGISTERED");
 	}
 }
 
 void EventBaseManager::VOnUpdate( f32 deltatime )
 {
-	if (listOfDelayedEvents->IsEmpty())
+	if (pch_listOfDelayedEvents->IsEmpty())
 	{
 		return;
 	}
 	
-	BaseDelayedEvent* curr = listOfDelayedEvents->GetFirst();
+	BaseDelayedEvent* curr = pch_listOfDelayedEvents->GetFirst();
 	do 
 	{
 		curr->VOnUpdate( deltatime );
 
 		if (curr->IsDelayOver()) {
 			SendEvent( curr );
-			curr = listOfDelayedEvents->GetNextFrom( curr );
-			listOfDelayedEvents->Remove( listOfDelayedEvents->GetPreviousOf( curr ) );
+			curr = pch_listOfDelayedEvents->GetNextFrom( curr );
+			pch_listOfDelayedEvents->Remove( pch_listOfDelayedEvents->GetPreviousOf( curr ) );
 		} else {
-			curr = listOfDelayedEvents->GetNextFrom( curr );
+			curr = pch_listOfDelayedEvents->GetNextFrom( curr );
 		}
-	} while (curr != listOfDelayedEvents->GetLast());
-
-	//for (std::vector<BaseDelayedEvent*>::iterator it = m_pcAllDelayedEvents->begin(); it != m_pcAllDelayedEvents->end(); ++it) //for each listener in the vector...
-	//{
-	//	(*it)->VOnUpdate( deltatime );
-	//	if ((*it)->IsDelayOver())
-	//	{
-	//		SendEvent( (*it) );
-
-	//	}
-	//}
+	} while (curr != pch_listOfDelayedEvents->GetLast())
 
 }
 
