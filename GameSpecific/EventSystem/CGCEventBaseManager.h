@@ -80,7 +80,7 @@ private:
 
 	i32 m_inumOfRegistations;
 	(const i8*)* pc_RegisteredEventTypes;
-	ChainList<EventSender>* pc_ListOfHandlers;
+	(EventSender*)* p_ArrayOfHandlers;
 
 	ChainList<BaseDelayedEvent>* pch_listOfDelayedEvents;
 	
